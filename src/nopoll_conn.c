@@ -1031,9 +1031,9 @@ noPollConn * __nopoll_conn_new_common (noPollCtx       * ctx,
 		nopoll_log (ctx, NOPOLL_LEVEL_INFO, "connecting to remote TLS site %s:%s", conn->host, conn->port);
 		iterator = 0;
 		while (SSL_connect (conn->ssl) <= 0) {
-		#define SSL_CONN_SLEEP 50000L  /* .05 sec */
+		#define SSL_CONN_SLEEP 10000L  /* .01 sec */
 			int log_level = NOPOLL_LEVEL_WARNING;
-			if (0 == (iterator % 20))
+			if (0 == (iterator & 0x7F))
 			  log_level = NOPOLL_LEVEL_INFO;
 			/* get ssl error */
 			ssl_error = SSL_get_error (conn->ssl, -1);
@@ -1087,9 +1087,10 @@ noPollConn * __nopoll_conn_new_common (noPollCtx       * ctx,
 			/* try and limit max reconnect allowed */
 			iterator++;
 
-			if (iterator > 200) {
+			if (iterator > 1000) {
 				nopoll_log (ctx, NOPOLL_LEVEL_CRITICAL, "Max retry calls=%d to SSL_connect reached, shutting down connection id=%d, errno=%d",
 					    iterator, conn->id, errno);
+				nopoll_conn_shutdown (conn);
 				nopoll_free (content);
 
 				/* release connection options */

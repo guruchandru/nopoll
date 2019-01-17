@@ -231,14 +231,46 @@ nopoll_bool                 nopoll_conn_set_bind_interface (NOPOLL_SOCKET socket
 	return nopoll_true;
 } /* end */
 
+static void __select_wait (int fd, long int usecs, nopoll_bool is_read)
+{
+  fd_set fds;
+  struct timeval timeout;
+
+  FD_ZERO (&fds);
+  FD_SET (fd, &fds);
+  timeout.tv_sec = 0;
+  timeout.tv_usec = usecs;
+  if (is_read)
+    select (fd+1, &fds, NULL, NULL, &timeout);
+  else
+    select (fd+1, NULL, &fds, NULL, &timeout);
+}
+
+int __nopoll_conn_sock_connect_non_blocking (int sockfd,
+	const struct sockaddr *addr, socklen_t addrlen)
+{
+  int i = 0;
+
+  while (-1 == connect (sockfd, addr, addrlen)) { 
+    if (i>=15) /* .75 sec */
+      return errno;
+    if (errno != NOPOLL_EINPROGRESS && errno != NOPOLL_EAGAIN 
+        && errno != NOPOLL_EWOULDBLOCK && errno != NOPOLL_ENOTCONN)
+      return errno; 
+    __select_wait (sockfd, 50000L, nopoll_false);  /* timeout .05 sec */
+    i++;
+  }
+  return 0;
+}
+
 NOPOLL_SOCKET __nopoll_conn_sock_connect_opts_internal (noPollCtx       * ctx,
 							noPollTransport   transport,
 							const char      * host,
 							const char      * port,
 							noPollConnOpts  * options)
 {
-
-	struct addrinfo      hints, *res = NULL,*rp;
+	int		rtn;
+	struct addrinfo      hints, *res = NULL, *rp;
 	NOPOLL_SOCKET        session     = NOPOLL_INVALID_SOCKET;
 	char addrstr[100];
 	void *ptr = NULL;
@@ -332,23 +364,18 @@ NOPOLL_SOCKET __nopoll_conn_sock_connect_opts_internal (noPollCtx       * ctx,
 	nopoll_conn_set_sock_block (session, nopoll_false);
 	
 	/* do a tcp connect */
-        if (connect (session, res->ai_addr, res->ai_addrlen) < 0) {
-		if(errno != NOPOLL_EINPROGRESS && errno != NOPOLL_EWOULDBLOCK && errno != NOPOLL_ENOTCONN) {
-			nopoll_log (ctx, NOPOLL_LEVEL_CRITICAL, "unable to connect to remote host %s:%s errno=%d",
-				    host, port, errno);
+        rtn = __nopoll_conn_sock_connect_non_blocking (session, res->ai_addr, res->ai_addrlen);
+	if (rtn != 0) {
+		nopoll_log (ctx, NOPOLL_LEVEL_WARNING, "unable to connect to remote host %s:%s errno=%d",
+			    host, port, rtn);
 
-		        shutdown (session, SHUT_RDWR);
-                        nopoll_close_socket (session);
+	        shutdown (session, SHUT_RDWR);
+                nopoll_close_socket (session);
 
-			/* relase address info */
-			freeaddrinfo (res);
+		/* relase address info */
+		freeaddrinfo (res);
 			
-			return -1;
-		}
-	}
-	else
-	{
-		nopoll_log (ctx, NOPOLL_LEVEL_DEBUG,"socket connect successfull");
+		return -1;
 	} /* end if */
 
 	/* relase address info */
@@ -882,7 +909,7 @@ noPollConn * __nopoll_conn_new_common (noPollCtx       * ctx,
 	if (session == NOPOLL_INVALID_SOCKET) {
 		/* release connection options */
 		__nopoll_conn_opts_release_if_needed (options);
-		nopoll_log (ctx, NOPOLL_LEVEL_DEBUG, "Failed to connect to remote host %s:%s", host_ip, host_port);
+		nopoll_log (ctx, NOPOLL_LEVEL_CRITICAL, "Failed to connect to remote host %s:%s", host_ip, host_port);
 		return NULL;
 	} /* end if */
 
@@ -1004,7 +1031,8 @@ noPollConn * __nopoll_conn_new_common (noPollCtx       * ctx,
 		nopoll_log (ctx, NOPOLL_LEVEL_INFO, "connecting to remote TLS site %s:%s", conn->host, conn->port);
 		iterator = 0;
 		while (SSL_connect (conn->ssl) <= 0) {
-		
+		#define SSL_CONN_SLEEP 50000L  /* .05 sec */
+
 			/* get ssl error */
 			ssl_error = SSL_get_error (conn->ssl, -1);
  
@@ -1012,10 +1040,12 @@ noPollConn * __nopoll_conn_new_common (noPollCtx       * ctx,
 			case SSL_ERROR_WANT_READ:
 			        nopoll_log (ctx, NOPOLL_LEVEL_WARNING, "still not prepared to continue because read wanted, conn-id=%d (%p, session: %d), errno=%d",
 					    conn->id, conn, conn->session, errno);
+				__select_wait (conn->session, SSL_CONN_SLEEP,  nopoll_false);
 				break;
 			case SSL_ERROR_WANT_WRITE:
 			        nopoll_log (ctx, NOPOLL_LEVEL_WARNING, "still not prepared to continue because write wanted, conn-id=%d (%p)",
 					    conn->id, conn);
+				__select_wait (conn->session, SSL_CONN_SLEEP, nopoll_true);
 				break;
 			case SSL_ERROR_SYSCALL:
 				/* Check ENOTCONN on SSL_connect error (only happening on windows). See:
@@ -1055,7 +1085,7 @@ noPollConn * __nopoll_conn_new_common (noPollCtx       * ctx,
 			/* try and limit max reconnect allowed */
 			iterator++;
 
-			if (iterator > 1000) {
+			if (iterator > 200) {
 				nopoll_log (ctx, NOPOLL_LEVEL_CRITICAL, "Max retry calls=%d to SSL_connect reached, shutting down connection id=%d, errno=%d",
 					    iterator, conn->id, errno);
 				nopoll_free (content);
@@ -1067,7 +1097,8 @@ noPollConn * __nopoll_conn_new_common (noPollCtx       * ctx,
 			} /* end if */
 
 			/* wait a bit before retry */
-			nopoll_sleep (10000);
+			if (ssl_error == SSL_ERROR_SYSCALL)
+			  nopoll_sleep (SSL_CONN_SLEEP);
 
 		} /* end while */
 

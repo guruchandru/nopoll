@@ -1042,12 +1042,12 @@ noPollConn * __nopoll_conn_new_common (noPollCtx       * ctx,
 			case SSL_ERROR_WANT_READ:
 			        nopoll_log (ctx, log_level, "still not prepared to continue because read wanted, conn-id=%d (%p, session: %d), errno=%d",
 					    conn->id, conn, conn->session, errno);
-				__select_wait (conn->session, SSL_CONN_SLEEP,  nopoll_false);
+				/* __select_wait (conn->session, SSL_CONN_SLEEP,  nopoll_false); */
 				break;
 			case SSL_ERROR_WANT_WRITE:
-			        nopoll_log (ctx, log_level, "still not prepared to continue because write wanted, conn-id=%d (%p)",
-					    conn->id, conn);
-				__select_wait (conn->session, SSL_CONN_SLEEP, nopoll_true);
+			        nopoll_log (ctx, log_level, "still not prepared to continue because write wanted, conn-id=%d (%p, session: %d), errno=%d",
+					    conn->id, conn, conn->session, errno);
+				/* __select_wait (conn->session, SSL_CONN_SLEEP, nopoll_true); */
 				break;
 			case SSL_ERROR_SYSCALL:
 				/* Check ENOTCONN on SSL_connect error (only happening on windows). See:
@@ -1100,7 +1100,7 @@ noPollConn * __nopoll_conn_new_common (noPollCtx       * ctx,
 			} /* end if */
 
 			/* wait a bit before retry */
-			if (ssl_error == SSL_ERROR_SYSCALL)
+			/* if (ssl_error == SSL_ERROR_SYSCALL) */
 			  nopoll_sleep (SSL_CONN_SLEEP);
 
 		} /* end while */

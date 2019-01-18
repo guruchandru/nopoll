@@ -1031,7 +1031,6 @@ noPollConn * __nopoll_conn_new_common (noPollCtx       * ctx,
 		nopoll_log (ctx, NOPOLL_LEVEL_INFO, "connecting to remote TLS site %s:%s", conn->host, conn->port);
 		iterator = 0;
 		while (SSL_connect (conn->ssl) <= 0) {
-		#define SSL_CONN_SLEEP 10000L  /* .01 sec */
 			int log_level = NOPOLL_LEVEL_WARNING;
 			if (0 == (iterator & 0x7F))
 			  log_level = NOPOLL_LEVEL_INFO;
@@ -1042,12 +1041,10 @@ noPollConn * __nopoll_conn_new_common (noPollCtx       * ctx,
 			case SSL_ERROR_WANT_READ:
 			        nopoll_log (ctx, log_level, "still not prepared to continue because read wanted, conn-id=%d (%p, session: %d), errno=%d",
 					    conn->id, conn, conn->session, errno);
-				/* __select_wait (conn->session, SSL_CONN_SLEEP,  nopoll_false); */
 				break;
 			case SSL_ERROR_WANT_WRITE:
 			        nopoll_log (ctx, log_level, "still not prepared to continue because write wanted, conn-id=%d (%p, session: %d), errno=%d",
 					    conn->id, conn, conn->session, errno);
-				/* __select_wait (conn->session, SSL_CONN_SLEEP, nopoll_true); */
 				break;
 			case SSL_ERROR_SYSCALL:
 				/* Check ENOTCONN on SSL_connect error (only happening on windows). See:
@@ -1100,8 +1097,7 @@ noPollConn * __nopoll_conn_new_common (noPollCtx       * ctx,
 			} /* end if */
 
 			/* wait a bit before retry */
-			/* if (ssl_error == SSL_ERROR_SYSCALL) */
-			  nopoll_sleep (SSL_CONN_SLEEP);
+		        nopoll_sleep (10000);  /* .01 sec */
 
 		} /* end while */
 

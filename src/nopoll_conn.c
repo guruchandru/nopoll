@@ -246,16 +246,27 @@ static void __select_wait (int fd, long int usecs, nopoll_bool is_read)
     select (fd+1, NULL, &fds, NULL, &timeout);
 }
 
-int __nopoll_conn_sock_connect_non_blocking (int sockfd,
+int __nopoll_conn_sock_connect_non_blocking (noPollCtx *ctx, int sockfd,
 	const struct sockaddr *addr, socklen_t addrlen)
 {
   int i = 0;
+  int so_error_opt;
+  socklen_t optlen = sizeof(int);
 
   while (-1 == connect (sockfd, addr, addrlen)) { 
     if (i>=15) /* .75 sec */
       return errno;
-    if ((errno != NOPOLL_EINPROGRESS) && (errno != NOPOLL_EAGAIN) 
-        && (errno != NOPOLL_EWOULDBLOCK) && (errno != NOPOLL_ENOTCONN))
+    if (errno == NOPOLL_EINPROGRESS) {
+      __select_wait (sockfd, 350000L, nopoll_false);  /* timeout .35 sec */
+      if (getsockopt (sockfd, SOL_SOCKET, SO_ERROR, 
+		(void*) &so_error_opt, &optlen) == 0)
+        return so_error_opt;
+      nopoll_log (ctx, NOPOLL_LEVEL_CRITICAL, "getsockopt error on connect: errno=%d",
+	errno);
+      return errno;
+    }
+    if ((errno != NOPOLL_EAGAIN) &&
+        (errno != NOPOLL_EWOULDBLOCK) && (errno != NOPOLL_ENOTCONN))
       return errno; 
     __select_wait (sockfd, 50000L, nopoll_false);  /* timeout .05 sec */
     i++;
@@ -364,7 +375,7 @@ NOPOLL_SOCKET __nopoll_conn_sock_connect_opts_internal (noPollCtx       * ctx,
 	nopoll_conn_set_sock_block (session, nopoll_false);
 	
 	/* do a tcp connect */
-        rtn = __nopoll_conn_sock_connect_non_blocking (session, res->ai_addr, res->ai_addrlen);
+        rtn = __nopoll_conn_sock_connect_non_blocking (ctx, session, res->ai_addr, res->ai_addrlen);
 	if (rtn != 0) {
 		nopoll_log (ctx, NOPOLL_LEVEL_CRITICAL, "unable to connect to remote host %s:%s errno=%d",
 			    host, port, rtn);

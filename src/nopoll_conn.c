@@ -385,9 +385,7 @@ NOPOLL_SOCKET __nopoll_conn_sock_connect_opts_internal (noPollCtx       * ctx,
 
 		/* relase address info */
 		freeaddrinfo (res);
-			
-			return -1;
-		}
+		return -1;
 	}
 	else
 	{

@@ -386,7 +386,12 @@ NOPOLL_SOCKET __nopoll_conn_sock_connect_opts_internal (noPollCtx       * ctx,
 		/* relase address info */
 		freeaddrinfo (res);
 			
-		return -1;
+			return -1;
+		}
+	}
+	else
+	{
+		nopoll_log (ctx, NOPOLL_LEVEL_DEBUG,"socket connect successfull");
 	} /* end if */
 
 	/* relase address info */
@@ -1042,20 +1047,18 @@ noPollConn * __nopoll_conn_new_common (noPollCtx       * ctx,
 		nopoll_log (ctx, NOPOLL_LEVEL_INFO, "connecting to remote TLS site %s:%s", conn->host, conn->port);
 		iterator = 0;
 		while (SSL_connect (conn->ssl) <= 0) {
-			int log_level = NOPOLL_LEVEL_WARNING;
-			if (0 == (iterator & 0x7F))
-			  log_level = NOPOLL_LEVEL_INFO;
+		
 			/* get ssl error */
 			ssl_error = SSL_get_error (conn->ssl, -1);
  
 			switch (ssl_error) {
 			case SSL_ERROR_WANT_READ:
-			        nopoll_log (ctx, log_level, "still not prepared to continue because read wanted, conn-id=%d (%p, session: %d), errno=%d",
+			        nopoll_log (ctx, NOPOLL_LEVEL_WARNING, "still not prepared to continue because read wanted, conn-id=%d (%p, session: %d), errno=%d",
 					    conn->id, conn, conn->session, errno);
 				break;
 			case SSL_ERROR_WANT_WRITE:
-			        nopoll_log (ctx, log_level, "still not prepared to continue because write wanted, conn-id=%d (%p, session: %d), errno=%d",
-					    conn->id, conn, conn->session, errno);
+			        nopoll_log (ctx, NOPOLL_LEVEL_WARNING, "still not prepared to continue because write wanted, conn-id=%d (%p)",
+					    conn->id, conn);
 				break;
 			case SSL_ERROR_SYSCALL:
 				/* Check ENOTCONN on SSL_connect error (only happening on windows). See:

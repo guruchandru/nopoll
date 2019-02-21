@@ -3726,8 +3726,10 @@ read_payload:
 	if (msg->payload_size != 0 && msg->op_code == NOPOLL_PING_FRAME) {
 		nopoll_log (conn->ctx, NOPOLL_LEVEL_DEBUG, "PING received over connection id=%d and payload_size=%d, replying PONG",
 			    conn->id, msg->payload_size);
-		/* Set the ping handler */
-		conn->on_ping_msg (conn->ctx, conn, msg, conn->on_ping_msg_data);
+		/* Send to ping handler IF it exists */
+		if(conn->on_ping_msg) {
+			conn->on_ping_msg (conn->ctx, conn, msg, conn->on_ping_msg_data);
+		}
 		nopoll_conn_send_pong (conn, nopoll_msg_get_payload_size (msg), (noPollPtr)nopoll_msg_get_payload (msg));
 		nopoll_msg_unref (msg);
 		return NULL;

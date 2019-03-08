@@ -259,8 +259,11 @@ int __nopoll_conn_sock_connect_non_blocking (noPollCtx *ctx, int sockfd,
     if (errno == NOPOLL_EINPROGRESS) {
       __select_wait (sockfd, 350000L, nopoll_false);  /* timeout .35 sec */
       if (getsockopt (sockfd, SOL_SOCKET, SO_ERROR, 
-		(void*) &so_error_opt, &optlen) == 0)
+		(void*) &so_error_opt, &optlen) == 0) {
+	nopoll_log (ctx, NOPOLL_LEVEL_INFO,
+		"Result of wait after connect EINPROGRESS = %d\n", so_error_opt);
         return so_error_opt;
+      }
       nopoll_log (ctx, NOPOLL_LEVEL_CRITICAL, "getsockopt error on connect: errno=%d",
 	errno);
       return errno;

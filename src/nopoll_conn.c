@@ -926,7 +926,7 @@ noPollConn * __nopoll_conn_new_common (noPollCtx       * ctx,
 	if (session == NOPOLL_INVALID_SOCKET) {
 		/* release connection options */
 		__nopoll_conn_opts_release_if_needed (options);
-		nopoll_log (ctx, NOPOLL_LEVEL_CRITICAL, "Failed to connect to remote host %s:%s", host_ip, host_port);
+		nopoll_log (ctx, NOPOLL_LEVEL_DEBUG, "Failed to connect to remote host %s:%s", host_ip, host_port);
 		return NULL;
 	} /* end if */
 

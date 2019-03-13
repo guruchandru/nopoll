@@ -231,14 +231,60 @@ nopoll_bool                 nopoll_conn_set_bind_interface (NOPOLL_SOCKET socket
 	return nopoll_true;
 } /* end */
 
+static void __select_wait (int fd, long int usecs, nopoll_bool is_read)
+{
+  fd_set fds;
+  struct timeval timeout;
+
+  FD_ZERO (&fds);
+  FD_SET (fd, &fds);
+  timeout.tv_sec = 0;
+  timeout.tv_usec = usecs;
+  if (is_read)
+    select (fd+1, &fds, NULL, NULL, &timeout);
+  else
+    select (fd+1, NULL, &fds, NULL, &timeout);
+}
+
+int __nopoll_conn_sock_connect_non_blocking (noPollCtx *ctx, int sockfd,
+	const struct sockaddr *addr, socklen_t addrlen)
+{
+  int i = 0;
+  int so_error_opt;
+  socklen_t optlen = sizeof(int);
+
+  while (-1 == connect (sockfd, addr, addrlen)) { 
+    if (i>=15) /* .75 sec */
+      return errno;
+    if (errno == NOPOLL_EINPROGRESS) {
+      __select_wait (sockfd, 350000L, nopoll_false);  /* timeout .35 sec */
+      if (getsockopt (sockfd, SOL_SOCKET, SO_ERROR, 
+		(void*) &so_error_opt, &optlen) == 0) {
+	nopoll_log (ctx, NOPOLL_LEVEL_INFO,
+		"Result of wait after connect EINPROGRESS = %d\n", so_error_opt);
+        return so_error_opt;
+      }
+      nopoll_log (ctx, NOPOLL_LEVEL_CRITICAL, "getsockopt error on connect: errno=%d",
+	errno);
+      return errno;
+    }
+    if ((errno != NOPOLL_EAGAIN) &&
+        (errno != NOPOLL_EWOULDBLOCK) && (errno != NOPOLL_ENOTCONN))
+      return errno; 
+    __select_wait (sockfd, 50000L, nopoll_false);  /* timeout .05 sec */
+    i++;
+  }
+  return 0;
+}
+
 NOPOLL_SOCKET __nopoll_conn_sock_connect_opts_internal (noPollCtx       * ctx,
 							noPollTransport   transport,
 							const char      * host,
 							const char      * port,
 							noPollConnOpts  * options)
 {
-
-	struct addrinfo      hints, *res = NULL,*rp;
+	int		rtn;
+	struct addrinfo      hints, *res = NULL, *rp;
 	NOPOLL_SOCKET        session     = NOPOLL_INVALID_SOCKET;
 	char addrstr[100];
 	void *ptr = NULL;
@@ -332,19 +378,17 @@ NOPOLL_SOCKET __nopoll_conn_sock_connect_opts_internal (noPollCtx       * ctx,
 	nopoll_conn_set_sock_block (session, nopoll_false);
 	
 	/* do a tcp connect */
-        if (connect (session, res->ai_addr, res->ai_addrlen) < 0) {
-		if(errno != NOPOLL_EINPROGRESS && errno != NOPOLL_EWOULDBLOCK && errno != NOPOLL_ENOTCONN) {
-			nopoll_log (ctx, NOPOLL_LEVEL_CRITICAL, "unable to connect to remote host %s:%s errno=%d",
-				    host, port, errno);
+        rtn = __nopoll_conn_sock_connect_non_blocking (ctx, session, res->ai_addr, res->ai_addrlen);
+	if (rtn != 0) {
+		nopoll_log (ctx, NOPOLL_LEVEL_CRITICAL, "unable to connect to remote host %s:%s errno=%d",
+			    host, port, rtn);
 
-		        shutdown (session, SHUT_RDWR);
-                        nopoll_close_socket (session);
+	        shutdown (session, SHUT_RDWR);
+                nopoll_close_socket (session);
 
-			/* relase address info */
-			freeaddrinfo (res);
-			
-			return -1;
-		}
+		/* relase address info */
+		freeaddrinfo (res);
+		return -1;
 	}
 	else
 	{
@@ -1061,6 +1105,7 @@ noPollConn * __nopoll_conn_new_common (noPollCtx       * ctx,
 			if (iterator > 1000) {
 				nopoll_log (ctx, NOPOLL_LEVEL_CRITICAL, "Max retry calls=%d to SSL_connect reached, shutting down connection id=%d, errno=%d",
 					    iterator, conn->id, errno);
+				nopoll_conn_shutdown (conn);
 				nopoll_free (content);
 
 				/* release connection options */
@@ -1070,7 +1115,7 @@ noPollConn * __nopoll_conn_new_common (noPollCtx       * ctx,
 			} /* end if */
 
 			/* wait a bit before retry */
-			nopoll_sleep (10000);
+		        nopoll_sleep (10000);  /* .01 sec */
 
 		} /* end while */
 

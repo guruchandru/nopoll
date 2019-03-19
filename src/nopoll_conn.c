@@ -552,7 +552,7 @@ int nopoll_conn_log_ssl (noPollConn * conn)
 	}
 
 	recv (conn->session, log_buffer, 1, MSG_PEEK);
-	nopoll_log (ctx, NOPOLL_LEVEL_CRITICAL, "    noPoll id=%d, socket: %d (after testing errno: %d)",
+	nopoll_log (ctx, NOPOLL_LEVEL_DEBUG, "    noPoll id=%d, socket: %d (after testing errno: %d)",
 		    conn->id, conn->session, errno);
 
 	return (0);
@@ -2910,7 +2910,7 @@ nopoll_bool nopoll_conn_complete_handshake_check_client (noPollCtx * ctx, noPoll
 	if (! conn->handshake->websocket_accept ||
 	    ! conn->handshake->upgrade_websocket ||
 	    ! conn->handshake->connection_upgrade) {
-		nopoll_log (ctx, NOPOLL_LEVEL_CRITICAL, "Received uncomplete listener handshake reply (%p %d %d)",
+		nopoll_log (ctx, NOPOLL_LEVEL_INFO, "Received uncomplete listener handshake reply (%p %d %d)",
 			    conn->handshake->websocket_accept, conn->handshake->upgrade_websocket, conn->handshake->connection_upgrade);
 		return nopoll_false;
 	} /* end if */
@@ -3064,7 +3064,7 @@ int nopoll_conn_complete_handshake_client (noPollCtx * ctx, noPollConn * conn, c
 		while (iterator < buffer_size && buffer[iterator] && buffer[iterator] == ' ')
 			iterator++;
 		if (! nopoll_ncmp (buffer + iterator, "101", 3)) {
-			nopoll_log (ctx, NOPOLL_LEVEL_CRITICAL, "websocket server denied connection with: %s", buffer + iterator);
+			nopoll_log (ctx, NOPOLL_LEVEL_INFO, "websocket server denied connection with: %s", buffer + iterator);
 			strncpy(statuscode, buffer + iterator, 3);
 			/* flag that we have received HTTP/1.1 statuscode indication */
 			conn->handshake->received_non_101 = nopoll_true;

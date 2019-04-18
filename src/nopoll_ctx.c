@@ -337,7 +337,6 @@ void           nopoll_ctx_unregister_conn (noPollCtx  * ctx,
 
 			/* acquire a reference to the conection */
 			nopoll_conn_unref (conn);
-            nopoll_log (ctx, NOPOLL_LEVEL_INFO, "Returning, unlock of mutex is not required ");
 			return;
 		} /* end if */
 		

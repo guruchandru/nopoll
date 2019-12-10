@@ -2522,7 +2522,7 @@ int         __nopoll_conn_receive  (noPollConn * conn, char  * buffer, int  maxl
 #endif
 	/* if ((nread = conn->receive (conn, buffer, maxlen)) < 0) { */
 	if ((nread = conn->receive (conn, buffer, maxlen)) < 0) {
-                nopoll_log (conn->ctx, NOPOLL_LEVEL_CRITICAL, " conn receive nread=%d, errno=%d (%s)", nread,errno, strerror (errno));
+                nopoll_log (conn->ctx, NOPOLL_LEVEL_CRITICAL, "Error in conn receive nread");
 		if (errno == NOPOLL_EAGAIN) {
 			__nopoll_receive_delay (&wait_usecs);
 			goto keep_reading;
@@ -2536,7 +2536,7 @@ int         __nopoll_conn_receive  (noPollConn * conn, char  * buffer, int  maxl
 			goto keep_reading;
 		}
 		
-		nopoll_log (conn->ctx, NOPOLL_LEVEL_CRITICAL, "unable to readn=%d, error code was: %d (%s) (shutting down connection)", maxlen, errno, strerror (errno));
+		nopoll_log (conn->ctx, NOPOLL_LEVEL_CRITICAL, "Unable to readn (shutting down connection)");
 		nopoll_conn_shutdown (conn);
 		return -1;
 	}

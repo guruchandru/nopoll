@@ -2478,7 +2478,7 @@ int         __nopoll_conn_receive  (noPollConn * conn, char  * buffer, int  maxl
 	int         nread;
 	int         bytes;
 	long        wait_usecs = 500;
-
+	int         error_num;     
 	if (conn->pending_buf_bytes > 0) {
 		nopoll_log (conn->ctx, NOPOLL_LEVEL_DEBUG, "Calling with bytes we can reuse (%d), requested: %d",
 			    conn->pending_buf_bytes, maxlen);
@@ -2522,21 +2522,22 @@ int         __nopoll_conn_receive  (noPollConn * conn, char  * buffer, int  maxl
 #endif
 	/* if ((nread = conn->receive (conn, buffer, maxlen)) < 0) { */
 	if ((nread = conn->receive (conn, buffer, maxlen)) < 0) {
-                nopoll_log (conn->ctx, NOPOLL_LEVEL_CRITICAL, " conn receive nread=%d, errno=%d (%s)", nread,errno, strerror (errno));
-		if (errno == NOPOLL_EAGAIN) {
+                error_num = errno;
+                nopoll_log (conn->ctx, NOPOLL_LEVEL_CRITICAL, " conn receive nread=%d, errno=%d (%s)", nread,error_num, strerror (error_num));
+		if (error_num == NOPOLL_EAGAIN) {
 			__nopoll_receive_delay (&wait_usecs);
 			goto keep_reading;
 			/* return 0; */
 		}
-		if (errno == NOPOLL_EWOULDBLOCK) {
+		if (error_num == NOPOLL_EWOULDBLOCK) {
 			return 0;
 		}
-		if (errno == NOPOLL_EINTR) {
+		if (error_num == NOPOLL_EINTR) {
 			__nopoll_receive_delay (&wait_usecs);
 			goto keep_reading;
 		}
 		
-		nopoll_log (conn->ctx, NOPOLL_LEVEL_CRITICAL, "unable to readn=%d, error code was: %d (%s) (shutting down connection)", maxlen, errno, strerror (errno));
+		nopoll_log (conn->ctx, NOPOLL_LEVEL_CRITICAL, "unable to readn=%d, error code was: %d (%s) (shutting down connection)", maxlen, error_num, strerror (error_num));
 		nopoll_conn_shutdown (conn);
 		return -1;
 	}

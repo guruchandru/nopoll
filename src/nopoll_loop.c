@@ -269,7 +269,9 @@ int nopoll_loop_wait (noPollCtx * ctx, long timeout)
 		
 		/* implement wait operation */
 		/* nopoll_log (ctx, NOPOLL_LEVEL_DEBUG, "Waiting for changes into %d connections", ctx->conn_num); */
+		nopoll_log (ctx, NOPOLL_LEVEL_INFO, "Before wait status");
 		wait_status = ctx->io_engine->wait (ctx, ctx->io_engine->io_object);
+		nopoll_log (ctx, NOPOLL_LEVEL_INFO, "After wait status");
 		/* nopoll_log (ctx, NOPOLL_LEVEL_DEBUG, "Waiting finished with result %d", wait_status);  */
 		if (wait_status == -1) {
 			nopoll_log (ctx, NOPOLL_LEVEL_CRITICAL, "Received error from wait operation, error code was: %d", errno);
@@ -281,6 +283,7 @@ int nopoll_loop_wait (noPollCtx * ctx, long timeout)
 		if (wait_status > 0) {
 			/* check and call for connections with something
 			 * interesting */
+			nopoll_log (ctx, NOPOLL_LEVEL_INFO, "Inside wait_status");
 			nopoll_ctx_foreach_conn (ctx, nopoll_loop_process, &wait_status);
 		}
 
@@ -293,6 +296,7 @@ int nopoll_loop_wait (noPollCtx * ctx, long timeout)
 #endif
 			nopoll_timeval_substract (&stop, &start, &diff);
 			ellapsed = (diff.tv_sec * 1000000) + diff.tv_usec;
+			nopoll_log (ctx, NOPOLL_LEVEL_INFO, "Inside timeout");
 			if (ellapsed > timeout) {
 				result = -3; /* timeout reached */
 				break;
@@ -301,7 +305,9 @@ int nopoll_loop_wait (noPollCtx * ctx, long timeout)
 	} /* end while */
 
 	/* release engine */
+	nopoll_log (ctx, NOPOLL_LEVEL_INFO, "Before release ctx");
 	nopoll_io_release_engine (ctx->io_engine);
+	nopoll_log (ctx, NOPOLL_LEVEL_INFO, "After release ctx");
 	ctx->io_engine = NULL;
 
 	/* return result so far */
